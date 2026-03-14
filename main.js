@@ -778,27 +778,51 @@ function initProjectFilters() {
     const filterBtns = document.querySelectorAll('.filter-btn');
     const projectCards = document.querySelectorAll('.project-card');
 
+    function showCard(card, delay) {
+        // Remove any class that could hold opacity:0
+        card.classList.remove('hidden', 'reveal-up');
+        card.classList.add('revealed');
+        // Reset to invisible via inline style, then transition to visible
+        card.style.transition = 'none';
+        card.style.opacity = '0';
+        card.style.transform = 'translateY(24px)';
+        card.style.animation = 'none';
+        void card.offsetHeight; // force reflow
+        card.style.transition = `opacity 0.45s ease ${delay}s, transform 0.45s ease ${delay}s`;
+        card.style.opacity = '1';
+        card.style.transform = 'translateY(0)';
+    }
+
+    function hideCard(card) {
+        card.classList.add('hidden');
+        card.style.transition = '';
+        card.style.opacity = '';
+        card.style.transform = '';
+        card.style.animation = '';
+    }
+
     filterBtns.forEach(btn => {
         btn.addEventListener('click', () => {
             const filter = btn.getAttribute('data-filter');
-
-            // Update active button
             filterBtns.forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
 
-            // Filter projects
-            projectCards.forEach((card, index) => {
+            let visibleIndex = 0;
+            projectCards.forEach((card) => {
                 const category = card.getAttribute('data-category');
-
                 if (filter === 'all' || category === filter) {
-                    card.classList.remove('hidden');
-                    card.style.animation = `fadeInUp 0.5s ease ${index * 0.1}s both`;
+                    showCard(card, visibleIndex * 0.08);
+                    visibleIndex++;
                 } else {
-                    card.classList.add('hidden');
+                    hideCard(card);
                 }
             });
         });
     });
+
+    // Trigger "All" on init so every card starts in the correct visible state
+    const allBtn = document.querySelector('.filter-btn[data-filter="all"]');
+    if (allBtn) allBtn.click();
 }
 
 // ============================================
