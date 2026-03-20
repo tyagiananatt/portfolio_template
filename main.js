@@ -22,6 +22,7 @@ document.addEventListener('DOMContentLoaded', () => {
         initSkillTabs();
         initProjectFilters();
         initTestimonialSlider();
+        initCertSlider();
         initContactForm();
         initCounters();
         initMagneticButtons();
@@ -775,83 +776,93 @@ function initSkillTabs() {
 // PROJECT FILTERS
 // ============================================
 function initProjectFilters() {
-    const filterBtns = document.querySelectorAll('.filter-btn');
-    const projectCards = document.querySelectorAll('.project-card');
+    const tabs = document.querySelectorAll('.proj-tab');
+    const panels = document.querySelectorAll('.proj-panel');
 
-    function showCard(card, delay) {
-        // Remove any class that could hold opacity:0
-        card.classList.remove('hidden', 'reveal-up');
-        card.classList.add('revealed');
-        // Reset to invisible via inline style, then transition to visible
-        card.style.transition = 'none';
-        card.style.opacity = '0';
-        card.style.transform = 'translateY(24px)';
-        card.style.animation = 'none';
-        void card.offsetHeight; // force reflow
-        card.style.transition = `opacity 0.45s ease ${delay}s, transform 0.45s ease ${delay}s`;
-        card.style.opacity = '1';
-        card.style.transform = 'translateY(0)';
-    }
-
-    function hideCard(card) {
-        card.classList.add('hidden');
-        card.style.transition = '';
-        card.style.opacity = '';
-        card.style.transform = '';
-        card.style.animation = '';
-    }
-
-    filterBtns.forEach(btn => {
-        btn.addEventListener('click', () => {
-            const filter = btn.getAttribute('data-filter');
-            filterBtns.forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-
-            let visibleIndex = 0;
-            projectCards.forEach((card) => {
-                const category = card.getAttribute('data-category');
-                if (filter === 'all' || category === filter) {
-                    showCard(card, visibleIndex * 0.08);
-                    visibleIndex++;
-                } else {
-                    hideCard(card);
-                }
-            });
-        });
+    // Set counts on tabs
+    document.querySelectorAll('.proj-panel').forEach(panel => {
+        const id = panel.id.replace('panel-', '');
+        const count = panel.querySelectorAll('.proj-card').length;
+        const countEl = document.getElementById(id + '-count');
+        if (countEl) countEl.textContent = count;
     });
 
-    // Trigger "All" on init so every card starts in the correct visible state
-    const allBtn = document.querySelector('.filter-btn[data-filter="all"]');
-    if (allBtn) allBtn.click();
+    function activateTab(tabName) {
+        tabs.forEach(t => t.classList.toggle('active', t.dataset.tab === tabName));
+        panels.forEach(p => {
+            const isActive = p.id === 'panel-' + tabName;
+            p.classList.toggle('active', isActive);
+            if (isActive) {
+                // stagger cards in
+                const cards = p.querySelectorAll('.proj-card');
+                cards.forEach((card, i) => {
+                    card.style.opacity = '0';
+                    card.style.transform = 'translateY(30px)';
+                    setTimeout(() => {
+                        card.style.transition = 'opacity 0.45s ease, transform 0.45s ease';
+                        card.style.opacity = '1';
+                        card.style.transform = 'translateY(0)';
+                    }, i * 80);
+                });
+            }
+        });
+    }
+
+    tabs.forEach(tab => {
+        tab.addEventListener('click', () => activateTab(tab.dataset.tab));
+    });
+
+    // Init first tab
+    activateTab('hobby');
+
+    // Re-init tilt on new cards
+    if (typeof VanillaTilt !== 'undefined') {
+        document.querySelectorAll('.proj-card[data-tilt]').forEach(el => {
+            VanillaTilt.init(el, { max: 12, glare: true, 'max-glare': 0.12 });
+        });
+    }
 }
 
 // ============================================
 // TESTIMONIAL SLIDER
 // ============================================
 function initTestimonialSlider() {
-    const cards = document.querySelectorAll('.testimonial-card');
-    const dots = document.querySelectorAll('.testimonial-dots .dot');
-    const prevBtn = document.getElementById('prev-test');
-    const nextBtn = document.getElementById('next-test');
+    const slider = document.getElementById('certificate-slider');
+    const cards = document.querySelectorAll('.certificate-card');
+    const dotsContainer = document.getElementById('cert-dots');
+    const prevBtn = document.getElementById('prev-cert');
+    const nextBtn = document.getElementById('next-cert');
+    
+    if (!slider || cards.length === 0) return;
+
     let currentSlide = 0;
     let autoSlideInterval;
 
-    if (cards.length === 0) return;
+    // Create dots
+    cards.forEach((_, i) => {
+        const dot = document.createElement('span');
+        dot.classList.add('dot');
+        if (i === 0) dot.classList.add('active');
+        dot.addEventListener('click', () => {
+            showSlide(i);
+            resetAutoSlide();
+        });
+        if (dotsContainer) dotsContainer.appendChild(dot);
+    });
+    
+    const dots = dotsContainer ? dotsContainer.querySelectorAll('.dot') : [];
 
     function showSlide(index) {
-        cards.forEach(card => {
-            card.classList.remove('active', 'prev');
+        cards.forEach((card, i) => {
+            card.classList.remove('active');
+            if (i === index) {
+                card.classList.add('active');
+            }
         });
-        dots.forEach(dot => dot.classList.remove('active'));
-
-        // Previous slide
-        const prevIndex = (index - 1 + cards.length) % cards.length;
-        cards[prevIndex].classList.add('prev');
-
-        // Current slide
-        cards[index].classList.add('active');
-        if (dots[index]) dots[index].classList.add('active');
-
+        if(dots.length > 0) {
+            dots.forEach(dot => dot.classList.remove('active'));
+            if (dots[index]) dots[index].classList.add('active');
+        }
         currentSlide = index;
     }
 
@@ -875,14 +886,6 @@ function initTestimonialSlider() {
         resetAutoSlide();
     });
 
-    dots.forEach((dot, index) => {
-        dot.addEventListener('click', () => {
-            showSlide(index);
-            resetAutoSlide();
-        });
-    });
-
-    // Auto slide
     function startAutoSlide() {
         autoSlideInterval = setInterval(nextSlide, 5000);
     }
@@ -1121,33 +1124,26 @@ if (typeof gsap !== 'undefined' && typeof ScrollTrigger !== 'undefined') {
 
     // Service cards stagger
     gsap.utils.toArray('.service-card').forEach((card, i) => {
-        gsap.from(card, {
-            y: 60,
-            opacity: 0,
-            duration: 0.8,
-            delay: i * 0.1,
-            scrollTrigger: {
-                trigger: card,
-                start: 'top 90%',
-                toggleActions: 'play none none none'
+        gsap.fromTo(card,
+            { y: 60, opacity: 0 },
+            {
+                y: 0,
+                opacity: 1,
+                duration: 0.8,
+                delay: i * 0.1,
+                ease: 'power2.out',
+                scrollTrigger: {
+                    trigger: card,
+                    start: 'top 95%',
+                    toggleActions: 'play none none none',
+                    once: true,
+                    onEnter: () => gsap.set(card, { opacity: 1, y: 0 })
+                }
             }
-        });
+        );
     });
 
-    // Project cards stagger
-    gsap.utils.toArray('.project-card').forEach((card, i) => {
-        gsap.from(card, {
-            y: 80,
-            opacity: 0,
-            duration: 0.8,
-            delay: i * 0.15,
-            scrollTrigger: {
-                trigger: card,
-                start: 'top 90%',
-                toggleActions: 'play none none none'
-            }
-        });
-    });
+    // Project cards — handled by tab panel stagger
 
     // Footer CTA text reveal
     gsap.from('.footer-cta h2', {
@@ -1331,9 +1327,6 @@ document.querySelectorAll('a[href^="#"]').forEach(anchor => {
         });
     }
 })();
-
-// ============================================
-//
 
 // ============================================
 // SMOOTH PAGE TRANSITIONS
@@ -2326,3 +2319,130 @@ class TextSplitter {
 // END OF MAIN.JS
 // ============================================
 console.log('✅ Portfolio loaded successfully!');
+
+// ============================================
+// CERTIFICATES 3D COVERFLOW SLIDER
+// ============================================
+function initCertSlider() {
+    const stage = document.getElementById('cert-stage');
+    if (!stage) return;
+
+    const cards = Array.from(stage.querySelectorAll('.cert-card'));
+    const dotsContainer = document.getElementById('cert-dots');
+    const prevBtn = document.getElementById('cert-prev');
+    const nextBtn = document.getElementById('cert-next');
+    const total = cards.length;
+    let current = 0;
+    let isAnimating = false;
+
+    // Build dots
+    cards.forEach((_, i) => {
+        const dot = document.createElement('span');
+        dot.className = 'cert-dot' + (i === 0 ? ' active' : '');
+        dot.addEventListener('click', () => goTo(i));
+        dotsContainer.appendChild(dot);
+    });
+
+    function getPos(cardIndex) {
+        const diff = (cardIndex - current + total) % total;
+        if (diff === 0) return 'active';
+        if (diff === 1) return 'next';
+        if (diff === total - 1) return 'prev';
+        if (diff === 2) return 'far-next';
+        if (diff === total - 2) return 'far-prev';
+        return 'hidden';
+    }
+
+    function render() {
+        cards.forEach((card, i) => {
+            card.setAttribute('data-pos', getPos(i));
+            card.classList.toggle('active', i === current);
+        });
+        // Update dots
+        dotsContainer.querySelectorAll('.cert-dot').forEach((dot, i) => {
+            dot.classList.toggle('active', i === current);
+        });
+    }
+
+    function goTo(index) {
+        if (isAnimating || index === current) return;
+        isAnimating = true;
+        current = ((index % total) + total) % total;
+        render();
+        setTimeout(() => { isAnimating = false; }, 680);
+    }
+
+    // Nav buttons
+    prevBtn.addEventListener('click', () => goTo(current - 1));
+    nextBtn.addEventListener('click', () => goTo(current + 1));
+
+    // Click side cards to navigate
+    cards.forEach((card, i) => {
+        card.addEventListener('click', () => {
+            const pos = card.getAttribute('data-pos');
+            if (pos === 'prev' || pos === 'far-prev') goTo(i);
+            else if (pos === 'next' || pos === 'far-next') goTo(i);
+        });
+    });
+
+    // Keyboard navigation
+    document.addEventListener('keydown', (e) => {
+        const section = document.getElementById('certificates');
+        if (!section) return;
+        const rect = section.getBoundingClientRect();
+        if (rect.top > window.innerHeight || rect.bottom < 0) return;
+        if (e.key === 'ArrowLeft') goTo(current - 1);
+        if (e.key === 'ArrowRight') goTo(current + 1);
+    });
+
+    // Touch / swipe support
+    let touchStartX = 0;
+    stage.addEventListener('touchstart', (e) => { touchStartX = e.touches[0].clientX; }, { passive: true });
+    stage.addEventListener('touchend', (e) => {
+        const diff = touchStartX - e.changedTouches[0].clientX;
+        if (Math.abs(diff) > 40) goTo(diff > 0 ? current + 1 : current - 1);
+    });
+
+    // Auto-advance every 4s
+    let autoTimer = setInterval(() => goTo(current + 1), 4000);
+    stage.addEventListener('mouseenter', () => clearInterval(autoTimer));
+    stage.addEventListener('mouseleave', () => {
+        clearInterval(autoTimer);
+        autoTimer = setInterval(() => goTo(current + 1), 4000);
+    });
+
+    // GSAP entrance animation
+    if (typeof gsap !== 'undefined' && typeof ScrollTrigger !== 'undefined') {
+        gsap.fromTo(stage,
+            { opacity: 0, y: 50 },
+            {
+                opacity: 1, y: 0, duration: 1, ease: 'power3.out',
+                scrollTrigger: { trigger: stage, start: 'top 85%', once: true }
+            }
+        );
+    }
+
+    render();
+}
+
+// ============================================
+// CONTACT 3D ENVELOPE MOUSE INTERACTION
+// ============================================
+(function initContact3D() {
+    const container = document.getElementById('contact3d-container');
+    const scene = document.getElementById('contact3d-scene');
+    if (!container || !scene) return;
+
+    container.addEventListener('mousemove', (e) => {
+        const rect = container.getBoundingClientRect();
+        const x = ((e.clientX - rect.left) / rect.width - 0.5) * 30;
+        const y = ((e.clientY - rect.top) / rect.height - 0.5) * -30;
+        scene.style.animation = 'none';
+        scene.style.transform = `rotateX(${y}deg) rotateY(${x}deg)`;
+    });
+
+    container.addEventListener('mouseleave', () => {
+        scene.style.animation = '';
+        scene.style.transform = '';
+    });
+})();
