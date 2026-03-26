@@ -14,21 +14,66 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/vanilla-tilt/1.8.0/vanilla-tilt.min.js"></script>
     <link rel="stylesheet" href="style.css">
     <style>
+        * { cursor: none !important; }
         #fluid-canvas {
             position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            z-index: 0;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            z-index: 9995;
             pointer-events: none;
+            mix-blend-mode: screen;
+        }
+        .cursor-main {
+            position: fixed; top: 0; left: 0;
+            width: 8px; height: 8px;
+            background: #fff; border-radius: 50%;
+            pointer-events: none; z-index: 9999;
+            mix-blend-mode: difference;
+            transform: translate(-50%, -50%);
+            transition: width 0.2s ease, height 0.2s ease, opacity 0.3s ease;
+        }
+        .cursor-ring {
+            position: fixed; top: 0; left: 0;
+            width: 36px; height: 36px;
+            border: 1.5px solid rgba(255,255,255,0.5);
+            border-radius: 50%;
+            pointer-events: none; z-index: 9998;
+            mix-blend-mode: difference;
+            transform: translate(-50%, -50%);
+            transition: width 0.3s cubic-bezier(0.23,1,0.32,1),
+                        height 0.3s cubic-bezier(0.23,1,0.32,1),
+                        border-color 0.3s ease, opacity 0.3s ease;
+        }
+        .cursor-glow {
+            position: fixed; top: 0; left: 0;
+            width: 80px; height: 80px;
+            border-radius: 50%;
+            pointer-events: none; z-index: 9997;
+            transform: translate(-50%, -50%);
+            background: radial-gradient(circle, rgba(100,200,255,0.08) 0%, transparent 70%);
+            transition: width 0.4s ease, height 0.4s ease, opacity 0.4s ease;
+        }
+        .cursor-trail {
+            position: fixed; top: 0; left: 0;
+            width: 4px; height: 4px;
+            background: rgba(255,255,255,0.6);
+            border-radius: 50%;
+            pointer-events: none; z-index: 9996;
+            transform: translate(-50%, -50%);
+            mix-blend-mode: difference;
         }
     </style>
 </head>
 <body>
     <!-- Custom Cursor -->
-    <div class="cursor" id="cursor"></div>
-    <div class="cursor-follower" id="cursor-follower"></div>
+    <div class="cursor-main" id="cursorMain"></div>
+    <div class="cursor-ring" id="cursorRing"></div>
+    <div class="cursor-glow" id="cursorGlow"></div>
+    <div class="cursor-trail" id="trail0"></div>
+    <div class="cursor-trail" id="trail1"></div>
+    <div class="cursor-trail" id="trail2"></div>
+    <div class="cursor-trail" id="trail3"></div>
+    <div class="cursor-trail" id="trail4"></div>
 
     <!-- Preloader -->
     <div id="preloader">
@@ -1144,7 +1189,115 @@
 
     <script src="main.js"></script>
     <script>
-    /* ── Fluid Neon Cursor Effect ── */
+    /* ── Custom Cursor System ── */
+    (function() {
+        const cursorMain = document.getElementById('cursorMain');
+        const cursorRing = document.getElementById('cursorRing');
+        const cursorGlow = document.getElementById('cursorGlow');
+        const trails = [0,1,2,3,4].map(i => document.getElementById('trail'+i));
+
+        let mouseX=-100, mouseY=-100, ringX=-100, ringY=-100, glowX=-100, glowY=-100;
+        let prevMouseX=-100, prevMouseY=-100, mouseSpeed=0;
+        let isMoving=false, moveTimeout, cursorVisible=false, currentNeonHue=0;
+        const trailPositions = [0,1,2,3,4].map(()=>({x:-100,y:-100}));
+
+        function getNeonGlowColor(speed) {
+            currentNeonHue = (currentNeonHue + 0.5) % 360;
+            const l = 60 + Math.min(speed*0.5, 20);
+            return `hsla(${currentNeonHue},100%,${l}%,${0.06+Math.min(speed*0.003,0.12)})`;
+        }
+
+        document.addEventListener('mousemove', e => {
+            mouseX = e.clientX; mouseY = e.clientY;
+            if (!cursorVisible) {
+                cursorVisible=true;
+                cursorMain.style.opacity=cursorRing.style.opacity=cursorGlow.style.opacity='1';
+            }
+            const dx=mouseX-prevMouseX, dy=mouseY-prevMouseY;
+            mouseSpeed = Math.sqrt(dx*dx+dy*dy);
+            prevMouseX=mouseX; prevMouseY=mouseY;
+            isMoving=true; clearTimeout(moveTimeout);
+            moveTimeout=setTimeout(()=>isMoving=false, 100);
+
+            cursorMain.style.left=mouseX+'px'; cursorMain.style.top=mouseY+'px';
+            const ss=Math.min(mouseSpeed/30,1);
+            const ds=8+ss*4; cursorMain.style.width=ds+'px'; cursorMain.style.height=ds+'px';
+            const rs=36+ss*20; cursorRing.style.width=rs+'px'; cursorRing.style.height=rs+'px';
+            cursorRing.style.borderColor=`rgba(255,255,255,${0.5-ss*0.3})`;
+            const gs=80+ss*60; cursorGlow.style.width=gs+'px'; cursorGlow.style.height=gs+'px';
+            cursorGlow.style.background=`radial-gradient(circle,${getNeonGlowColor(mouseSpeed)} 0%,transparent 70%)`;
+        });
+
+        document.addEventListener('mouseleave', () => {
+            cursorVisible=false;
+            cursorMain.style.opacity=cursorRing.style.opacity=cursorGlow.style.opacity='0';
+            trails.forEach(t=>t.style.opacity='0');
+        });
+        document.addEventListener('mouseenter', () => {
+            cursorVisible=true;
+            cursorMain.style.opacity=cursorRing.style.opacity=cursorGlow.style.opacity='1';
+        });
+
+        (function animateCursor() {
+            ringX+=(mouseX-ringX)*0.15; ringY+=(mouseY-ringY)*0.15;
+            cursorRing.style.left=ringX+'px'; cursorRing.style.top=ringY+'px';
+            const angle=Math.atan2(mouseY-ringY,mouseX-ringX)*(180/Math.PI);
+            const dist=Math.sqrt((mouseX-ringX)**2+(mouseY-ringY)**2);
+            const stretch=Math.min(dist/50,0.3);
+            cursorRing.style.transform=`translate(-50%,-50%) rotate(${angle}deg) scaleX(${1+stretch}) scaleY(${1-stretch*0.3})`;
+            glowX+=(mouseX-glowX)*0.08; glowY+=(mouseY-glowY)*0.08;
+            cursorGlow.style.left=glowX+'px'; cursorGlow.style.top=glowY+'px';
+
+            for(let i=trailPositions.length-1;i>0;i--) {
+                trailPositions[i].x+=(trailPositions[i-1].x-trailPositions[i].x)*(0.25-i*0.03);
+                trailPositions[i].y+=(trailPositions[i-1].y-trailPositions[i].y)*(0.25-i*0.03);
+            }
+            trailPositions[0].x+=(mouseX-trailPositions[0].x)*0.35;
+            trailPositions[0].y+=(mouseY-trailPositions[0].y)*0.35;
+            trails.forEach((t,i)=>{
+                t.style.left=trailPositions[i].x+'px'; t.style.top=trailPositions[i].y+'px';
+                const sz=Math.max(4-i*0.7,1); t.style.width=sz+'px'; t.style.height=sz+'px';
+                t.style.opacity=(0.6-i*0.1)*(isMoving?1:0);
+            });
+
+            if (!isMoving) {
+                const b=Math.sin(Date.now()*0.003)*3, sz=36+b;
+                cursorRing.style.width=sz+'px'; cursorRing.style.height=sz+'px';
+                cursorRing.style.transform='translate(-50%,-50%) rotate(0deg) scaleX(1) scaleY(1)';
+                cursorRing.style.borderColor=`rgba(255,255,255,${0.4+Math.sin(Date.now()*0.002)*0.1})`;
+            }
+            requestAnimationFrame(animateCursor);
+        })();
+
+        document.addEventListener('mouseover', e => {
+            if (e.target.matches('a,button,[role="button"],input,textarea,select,label,[onclick]')||e.target.closest('a,button,[role="button"]')) {
+                cursorMain.style.width=cursorMain.style.height='0px';
+                cursorRing.style.width=cursorRing.style.height='52px';
+                cursorRing.style.borderColor='rgba(100,200,255,0.8)';
+                cursorGlow.style.width=cursorGlow.style.height='120px';
+            }
+        });
+        document.addEventListener('mouseout', e => {
+            if (e.target.matches('a,button,[role="button"],input,textarea,select,label,[onclick]')||e.target.closest('a,button,[role="button"]')) {
+                cursorMain.style.width=cursorMain.style.height='8px';
+                cursorRing.style.width=cursorRing.style.height='36px';
+                cursorRing.style.borderColor='rgba(255,255,255,0.5)';
+                cursorGlow.style.width=cursorGlow.style.height='80px';
+            }
+        });
+        document.addEventListener('mousedown', () => {
+            cursorMain.style.width=cursorMain.style.height='5px';
+            cursorRing.style.width=cursorRing.style.height='28px';
+            cursorGlow.style.width=cursorGlow.style.height='60px';
+        });
+        document.addEventListener('mouseup', () => {
+            cursorMain.style.width=cursorMain.style.height='8px';
+            cursorRing.style.width=cursorRing.style.height='36px';
+            cursorGlow.style.width=cursorGlow.style.height='80px';
+        });
+    })();
+
+    /* ── Fluid Neon Effect ── */
     (function() {
         'use strict';
         const canvas = document.getElementById('fluid-canvas');
@@ -1164,7 +1317,7 @@
         let pointers = [];
         let splatStack = [];
 
-        const params = { alpha: true, depth: false, stencil: false, antialias: false, premultipliedAlpha: false };
+        const params = { alpha: true, depth: false, stencil: false, antialias: false, premultipliedAlpha: true };
         let gl = canvas.getContext('webgl2', params);
         const isWebGL2 = !!gl;
         if (!isWebGL2) gl = canvas.getContext('webgl', params) || canvas.getContext('experimental-webgl', params);
@@ -1245,7 +1398,7 @@
 
         const baseVS = compileShader(gl.VERTEX_SHADER, `precision highp float;precision mediump sampler2D;attribute vec2 aPosition;varying vec2 vUv;varying vec2 vL;varying vec2 vR;varying vec2 vT;varying vec2 vB;uniform vec2 texelSize;void main(){vUv=aPosition*0.5+0.5;vL=vUv-vec2(texelSize.x,0.0);vR=vUv+vec2(texelSize.x,0.0);vT=vUv+vec2(0.0,texelSize.y);vB=vUv-vec2(0.0,texelSize.y);gl_Position=vec4(aPosition,0.0,1.0);}`);
         const clearFS    = compileShader(gl.FRAGMENT_SHADER, `precision highp float;precision mediump sampler2D;varying vec2 vUv;uniform sampler2D uTexture;uniform float value;void main(){gl_FragColor=value*texture2D(uTexture,vUv);}`);
-        const displayFS  = compileShader(gl.FRAGMENT_SHADER, `precision highp float;precision mediump sampler2D;varying vec2 vUv;uniform sampler2D uTexture;void main(){vec3 c=texture2D(uTexture,vUv).rgb;float lum=dot(c,vec3(0.299,0.587,0.114));c=mix(c,c*(1.0+lum*2.5),0.6);c=1.0-exp(-c*1.8);float g=dot(c,vec3(0.3,0.59,0.11));c=mix(vec3(g),c,1.4);vec2 uv=vUv*2.0-1.0;float vig=1.0-dot(uv*0.3,uv*0.3);c*=smoothstep(0.0,1.0,vig);gl_FragColor=vec4(c,dot(c,vec3(0.333)));}`);
+        const displayFS  = compileShader(gl.FRAGMENT_SHADER, `precision highp float;precision mediump sampler2D;varying vec2 vUv;uniform sampler2D uTexture;void main(){vec3 c=texture2D(uTexture,vUv).rgb;float lum=dot(c,vec3(0.299,0.587,0.114));c=mix(c,c*(1.0+lum*2.5),0.6);c=1.0-exp(-c*1.8);float g=dot(c,vec3(0.3,0.59,0.11));c=mix(vec3(g),c,1.4);vec2 uv=vUv*2.0-1.0;float vig=1.0-dot(uv*0.3,uv*0.3);c*=smoothstep(0.0,1.0,vig);float alpha=max(max(c.r,c.g),c.b);gl_FragColor=vec4(c,alpha);}`);
         const splatFS    = compileShader(gl.FRAGMENT_SHADER, `precision highp float;precision mediump sampler2D;varying vec2 vUv;uniform sampler2D uTarget;uniform float aspectRatio;uniform vec3 color;uniform vec2 point;uniform float radius;void main(){vec2 p=vUv-point.xy;p.x*=aspectRatio;vec3 splat=exp(-dot(p,p)/radius)*color;vec3 base=texture2D(uTarget,vUv).xyz;gl_FragColor=vec4(base+splat,1.0);}`);
         const advManFS   = compileShader(gl.FRAGMENT_SHADER, `precision highp float;precision mediump sampler2D;varying vec2 vUv;uniform sampler2D uVelocity;uniform sampler2D uSource;uniform vec2 texelSize;uniform float dt;uniform float dissipation;vec4 bilerp(in sampler2D sam,in vec2 p){vec4 st;st.xy=floor(p-0.5)+0.5;st.zw=st.xy+1.0;vec4 uv=st*texelSize.xyxy;vec4 a=texture2D(sam,uv.xy);vec4 b=texture2D(sam,uv.zy);vec4 c=texture2D(sam,uv.xw);vec4 d=texture2D(sam,uv.zw);vec2 f=p-st.xy;return mix(mix(a,b,f.x),mix(c,d,f.x),f.y);}void main(){vec2 coord=gl_FragCoord.xy-dt*texture2D(uVelocity,vUv).xy;gl_FragColor=dissipation*bilerp(uSource,coord);gl_FragColor.a=1.0;}`);
         const advFS      = compileShader(gl.FRAGMENT_SHADER, `precision highp float;precision mediump sampler2D;varying vec2 vUv;uniform sampler2D uVelocity;uniform sampler2D uSource;uniform vec2 texelSize;uniform float dt;uniform float dissipation;void main(){vec2 coord=vUv-dt*texture2D(uVelocity,vUv).xy*texelSize;gl_FragColor=dissipation*texture2D(uSource,coord);gl_FragColor.a=1.0;}`);
