@@ -903,62 +903,90 @@ function initTestimonialSlider() {
 // CONTACT FORM
 // ============================================
 function initContactForm() {
-    const form = document.getElementById('contact-form');
-    const status = document.getElementById('form-status');
+    // ── EmailJS config ──────────────────────────────────────────
+    // 1. Sign up free at https://www.emailjs.com
+    // 2. Add a Gmail service  → copy the Service ID  → replace YOUR_SERVICE_ID
+    // 3. Create template "contact_to_anant" (sends to you) → replace YOUR_TEMPLATE_ID
+    // 4. Create template "autoreply_to_sender" (auto-reply) → replace YOUR_AUTOREPLY_TEMPLATE_ID
+    // 5. Go to Account → API Keys → copy Public Key → replace YOUR_PUBLIC_KEY
+    const EJS_PUBLIC_KEY        = 'fJ_t0qYbGPVjKBrwK';
+    const EJS_SERVICE_ID        = 'service_c6bx4qg';
+    const EJS_TEMPLATE_TO_YOU   = 'template_m6atnlb';
+    const EJS_TEMPLATE_AUTOREPLY= 'template_9x7tw9v';
 
+    emailjs.init({ publicKey: EJS_PUBLIC_KEY });
+
+    const form   = document.getElementById('contact-form');
+    const status = document.getElementById('form-status');
     if (!form) return;
 
-    form.addEventListener('submit', (e) => {
+    form.addEventListener('submit', async (e) => {
         e.preventDefault();
 
-        const name = form.querySelector('#name').value.trim();
-        const email = form.querySelector('#email').value.trim();
+        const name    = form.querySelector('#name').value.trim();
+        const email   = form.querySelector('#email').value.trim();
         const subject = form.querySelector('#subject').value.trim();
         const message = form.querySelector('#message').value.trim();
 
-        // Basic validation
         if (!name || !email || !subject || !message) {
-            showStatus('Please fill in all fields.', 'error');
-            return;
+            showStatus('Please fill in all fields.', 'error'); return;
+        }
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+            showStatus('Please enter a valid email address.', 'error'); return;
         }
 
-        if (!isValidEmail(email)) {
-            showStatus('Please enter a valid email address.', 'error');
-            return;
-        }
+        const submitBtn  = form.querySelector('.submit-btn');
+        const btnText    = submitBtn.querySelector('.btn-text');
+        const btnIcon    = submitBtn.querySelector('.btn-icon i');
+        btnText.textContent = 'Sending…';
+        btnIcon.className   = 'fas fa-spinner fa-spin';
+        submitBtn.disabled  = true;
 
-        // Simulate form submission
-        const submitBtn = form.querySelector('.submit-btn');
-        const originalText = submitBtn.querySelector('.btn-text').textContent;
-        submitBtn.querySelector('.btn-text').textContent = 'Sending...';
-        submitBtn.disabled = true;
+        // Shared template variables
+        const templateParams = {
+            from_name   : name,
+            from_email  : email,
+            name        : name,        // used by auto-reply {{name}}
+            subject     : subject,
+            title       : subject,     // used by auto-reply {{title}}
+            message     : message,
+            to_email    : email,       // auto-reply To Email field
+            reply_to    : email,
+        };
 
-        setTimeout(() => {
-            showStatus('Message sent successfully! I\'ll get back to you soon. 🚀', 'success');
+        try {
+            // 1️⃣  Send notification to Anant
+            await emailjs.send(EJS_SERVICE_ID, EJS_TEMPLATE_TO_YOU, {
+                ...templateParams,
+                to_email: 'anttyagi710@gmail.com',
+            });
+
+            // 2️⃣  Send auto-reply to the sender
+            await emailjs.send(EJS_SERVICE_ID, EJS_TEMPLATE_AUTOREPLY, {
+                ...templateParams,
+                to_email: email,
+            });
+
+            showStatus('✅ Message sent! I\'ll get back to you within 24 hours.', 'success');
             form.reset();
-            submitBtn.querySelector('.btn-text').textContent = originalText;
-            submitBtn.disabled = false;
-
-            // Hide status after 5 seconds
+        } catch (err) {
+            console.error('EmailJS error:', err);
+            showStatus('❌ Something went wrong. Please email me directly at anttyagi710@gmail.com', 'error');
+        } finally {
+            btnText.textContent = 'Send Message';
+            btnIcon.className   = 'fas fa-paper-plane';
+            submitBtn.disabled  = false;
             setTimeout(() => {
-                if (status) {
-                    status.style.display = 'none';
-                    status.classList.remove('success', 'error');
-                }
-            }, 5000);
-        }, 2000);
+                if (status) { status.style.display = 'none'; status.className = 'form-status'; }
+            }, 7000);
+        }
     });
 
     function showStatus(msg, type) {
         if (!status) return;
-        status.textContent = msg;
+        status.innerHTML = msg;
         status.className = 'form-status ' + type;
         status.style.display = 'block';
-    }
-
-    function isValidEmail(email) {
-        const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        return re.test(email);
     }
 }
 
